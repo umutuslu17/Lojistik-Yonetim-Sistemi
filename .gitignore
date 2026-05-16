@@ -1,0 +1,8 @@
+.vs/
+bin/
+obj/
+TestResults/
+*.testlog
+*.testlog.manifest
+CopilotIndices/
+Data/log.txt

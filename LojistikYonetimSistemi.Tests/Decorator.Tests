@@ -1,0 +1,139 @@
+﻿using System;
+using Xunit;
+using LojistikYonetimSistemi.Models.Patterns.Adapter;
+using LojistikYonetimSistemi.Models.Patterns.Decorator;
+using LojistikYonetimSistemi.Models.Patterns.Factory;
+
+namespace LojistikYonetimSistemi.Tests
+{
+    // Decorator Pattern testleri — kargo ek hizmetlerinin fiyata
+    // doğru şekilde yansıyıp yansımadığını kanıtlıyoruz.
+    // Sigorta ve kırılgan koruma ücretlerinin temel fiyata
+    // doğru eklendiğini burada gösteriyoruz.
+    public class DecoratorTests
+    {
+        // Testlerde sabit değerler kullanıyoruz — hesap doğrulaması kolay olsun
+        private const double TestAgirlikKg = 1.0;
+        private const double TestMesafeKm = 100.0;
+
+        // Test 1: Temel Aras kargo fiyatı hesaplanıyor mu?
+        [Fact]
+        public void ArasAdapter_TemelFiyat_DogruHesaplanir()
+        {
+            // Arrange
+            IKargoServisi kargo = new ArasKargoAdapter();
+
+            // Act
+            decimal fiyat = kargo.FiyatHesapla(TestAgirlikKg, TestMesafeKm);
+
+            // Assert — 1kg = 10 desi, temel(15) + desi(10*1.5=15) = 30
+            Assert.Equal(30m, fiyat);
+        }
+
+        // Test 2: Sigorta Decorator temel fiyatı artırıyor mu?
+        [Fact]
+        public void SigortaDecorator_TemelFiyataEkleniyor()
+        {
+            // Arrange
+            IKargoServisi temelKargo = new ArasKargoAdapter();
+            decimal urunDegeri = 1000m;
+            IKargoServisi sigortaliKargo = new SigortaDecorator(temelKargo, urunDegeri);
+
+            // Act
+            decimal temelFiyat = temelKargo.FiyatHesapla(TestAgirlikKg, TestMesafeKm);
+            decimal sigortaFiyat = sigortaliKargo.FiyatHesapla(TestAgirlikKg, TestMesafeKm);
+
+            // Assert — sigortalı fiyat temel fiyattan büyük olmalı
+            Assert.True(sigortaFiyat > temelFiyat);
+
+            // Sigorta bedeli: 1000 * 0.005 = 5 TL
+            Assert.Equal(temelFiyat + 5m, sigortaFiyat);
+        }
+
+        // Test 3: Kırılgan koruma Decorator fiyatı 25 TL artırıyor mu?
+        [Fact]
+        public void KirilganKorumaDecorator_25TLEkliyor()
+        {
+            // Arrange
+            IKargoServisi temelKargo = new ArasKargoAdapter();
+            IKargoServisi kirilganKargo = new KirilganKorumaDecorator(temelKargo);
+
+            // Act
+            decimal temelFiyat = temelKargo.FiyatHesapla(TestAgirlikKg, TestMesafeKm);
+            decimal kirilganFiyat = kirilganKargo.FiyatHesapla(TestAgirlikKg, TestMesafeKm);
+
+            // Assert — tam olarak 25 TL eklenmeli
+            Assert.Equal(temelFiyat + 25m, kirilganFiyat);
+        }
+
+        // Test 4: Sigorta + Kırılgan koruma birlikte doğru hesaplanıyor mu?
+        [Fact]
+        public void SigortaVeKirilgan_BirlikteDogruHesaplanir()
+        {
+            // Arrange — önce kırılgan, üstüne sigorta sarıyoruz
+            IKargoServisi temelKargo = new ArasKargoAdapter();
+            IKargoServisi kirilganKargo = new KirilganKorumaDecorator(temelKargo);
+            IKargoServisi sigortaliKirilgan = new SigortaDecorator(kirilganKargo, 1000m);
+
+            // Act
+            decimal temelFiyat = temelKargo.FiyatHesapla(TestAgirlikKg, TestMesafeKm);
+            decimal toplamFiyat = sigortaliKirilgan.FiyatHesapla(TestAgirlikKg, TestMesafeKm);
+
+            // Assert — temel + 25 (kırılgan) + 5 (sigorta) = temel + 30
+            Assert.Equal(temelFiyat + 30m, toplamFiyat);
+        }
+
+        // Test 5: Decorator firma adını doğru döndürüyor mu?
+        [Fact]
+        public void SigortaDecorator_FirmaAdi_SigortaEkleniyor()
+        {
+            // Arrange
+            IKargoServisi kargo = new SigortaDecorator(new ArasKargoAdapter(), 500m);
+
+            // Act
+            string firmaAdi = kargo.FirmaAdi();
+
+            // Assert — firma adına "Sigorta" eklenmiş olmalı
+            Assert.Contains("Sigorta", firmaAdi);
+            Assert.Contains("Aras", firmaAdi);
+        }
+
+        // Test 6: Factory doğru kargo servisini üretiyor mu?
+        [Fact]
+        public void KargoFactory_ArasIstenir_ArasAdaptorDoner()
+        {
+            // Act
+            IKargoServisi kargo = KargoFactory.Olustur("Aras");
+
+            // Assert — firma adı Aras olmalı
+            Assert.Equal("Aras Kargo", kargo.FirmaAdi());
+        }
+
+        // Test 7: Factory Yurtiçi üretiyor mu?
+        [Fact]
+        public void KargoFactory_YurticiIstenir_YurticiAdaptorDoner()
+        {
+            // Act
+            IKargoServisi kargo = KargoFactory.Olustur("Yurtici");
+
+            // Assert
+            Assert.Equal("Yurtiçi Kargo", kargo.FirmaAdi());
+        }
+
+        // Test 8: Takip numarası üretiliyor mu?
+        [Fact]
+        public void ArasAdapter_TakipNoUret_BosDonmuyor()
+        {
+            // Arrange
+            IKargoServisi kargo = new ArasKargoAdapter();
+
+            // Act
+            string takipNo = kargo.TakipNoUret(42);
+
+            // Assert — takip numarası boş olmamalı ve ARS ile başlamalı
+            Assert.NotNull(takipNo);
+            Assert.NotEmpty(takipNo);
+            Assert.StartsWith("ARS", takipNo);
+        }
+    }
+}
